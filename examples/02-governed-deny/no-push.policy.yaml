@@ -1,0 +1,4 @@
+deny_tools:    ["mcp__*__place_*"]
+deny_commands: ["git push", "rm -rf"]
+deny_paths:    ["~/.ssh/**"]
+mode:          deny

@@ -1,0 +1,7 @@
+name: plan-then-build
+stages:
+  - role: design
+    autonomy: plan
+    brief: "Plan (do not edit) the approach for: {task}"
+  - role: implement
+    brief: "Implement the plan. Context: {prev.summary}"

@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Layer 3 — last gate before anything goes public.
+# Scans the commits being pushed for secrets/PII, asserts every pushed commit uses a
+# GitHub noreply author email, and runs the personal-coupling scrub test. Blocks on any failure.
+set -uo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+ZERO="0000000000000000000000000000000000000000"
+fail=0
+
+# stdin: <local ref> <local oid> <remote ref> <remote oid>  (one line per ref being pushed)
+while read -r _localref localoid _remoteref remoteoid; do
+  [ "$localoid" = "$ZERO" ] && continue          # branch deletion — nothing to scan
+  if printf '%s' "$remoteoid" | grep -qE '^0+$'; then
+    range="$localoid"                            # new branch / first push -> all reachable commits
+  else
+    range="$remoteoid..$localoid"                # only the new commits
+  fi
+
+  python3 "$ROOT/.githooks/secret-scan.py" diff "$range" || fail=1
+
+  if git log --format='%ae' "$range" 2>/dev/null | grep -vE 'users\.noreply\.github\.com$' | grep -q .; then
+    echo "pre-push: BLOCKED — a pushed commit uses a non-noreply author email:" >&2
+    git log --format='  %h %an <%ae>' "$range" | grep -vE 'users\.noreply\.github\.com>$' >&2
+    fail=1
+  fi
+done
+
+if [ -x "$ROOT/.venv/bin/python" ]; then PY="$ROOT/.venv/bin/python"; else PY="python3"; fi
+if ! "$PY" -m pytest "$ROOT/tests/test_no_personal_coupling.py" -q >/dev/null 2>&1; then
+  echo "pre-push: BLOCKED — personal-coupling scrub test failed." >&2
+  fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo "pre-push: refusing to push — resolve the issues above (or use --no-verify only if you are certain)." >&2
+  exit 1
+fi

@@ -1,0 +1,4 @@
+name: cheap-bulk
+stages:
+  - role: bulk_edit
+    brief: "Apply this mechanical change across the repo: {task}"

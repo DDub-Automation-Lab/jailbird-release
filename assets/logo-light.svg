@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 64" width="250" height="64" role="img" aria-label="jailbird">
+  <path d="M25 14 H15 V50 H25" fill="none" stroke="#1f2328" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M39 14 H49 V50 H39" fill="none" stroke="#1f2328" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M21 34 C25 27 29 27 32 33 C35 27 39 27 43 34" fill="none" stroke="#4f46e5" stroke-width="3.2" stroke-linecap="round"/>
+  <text x="74" y="41" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="27" font-weight="600" letter-spacing="-1"><tspan fill="#1f2328">jail</tspan><tspan fill="#4f46e5">bird</tspan></text>
+</svg>

@@ -1,0 +1,9 @@
+name: design-build-qa
+stages:
+  - role: design
+    brief: "Produce a short architecture/design for: {task}"
+  - role: implement
+    brief: "Implement the approved design in this repo. Context: {prev.summary}"
+  - role: qa
+    brief: "Review the diff for correctness & risks. Context: {prev.summary}"
+    gate: true

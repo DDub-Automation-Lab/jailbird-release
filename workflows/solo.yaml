@@ -1,0 +1,4 @@
+name: solo
+stages:
+  - role: implement
+    brief: "Do the whole task end-to-end in this repo: {task}"

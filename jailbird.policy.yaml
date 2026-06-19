@@ -1,0 +1,4 @@
+deny_tools:    ["mcp__*__place_*", "mcp__*__delete_*"]
+deny_commands: ["git push", "rm -rf", "curl * | sh"]
+deny_paths:    ["~/.ssh/**", "/etc/**"]
+mode:          deny

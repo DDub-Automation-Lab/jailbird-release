@@ -1,0 +1,36 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.jailbird/
+.DS_Store
+
+# --- secret-leak prevention (this repo is published publicly) ---
+# Vendor governance config written by `jailbird apply` during local testing.
+.claude/
+.codex/
+.gemini/
+.agents/
+# Run artifacts / ledgers / logs.
+*.log
+*.local
+*.local.*
+**/ledger*.jsonl
+scratch/
+.scratch/
+# Secret material — never commit.
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+credentials*.json
+secrets*.yml
+secrets*.yaml
+# Internal planning / security-audit docs — never publish.
+PlannedWork/
+# Reusable pre-publication audit tooling (not jailbird product content; keep in a shared home).
+tools/

@@ -1,0 +1,9 @@
+name: design-build-qa
+stages:
+  - role: design
+    brief: "Design an approach for: {task}"
+  - role: implement
+    brief: "Implement it. Context: {prev.summary}"
+  - role: qa
+    brief: "QA the result. Context: {prev.summary}"
+    gate: true

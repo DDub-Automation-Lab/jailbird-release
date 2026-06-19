@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jailbird"
+version = "0.1.0"
+description = "Governable, cross-vendor headless coding-agent workers with usage-balanced routing."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "latentDaniel" }]
+dependencies = ["pyyaml>=6.0", "tomli-w>=1.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10"]
+
+[project.scripts]
+jailbird = "jailbird.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["jailbird*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

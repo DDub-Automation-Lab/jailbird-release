@@ -1,0 +1,5 @@
+roles:
+  design:     claude
+  implement:  codex
+  qa:         antigravity
+  bulk_edit:  auto

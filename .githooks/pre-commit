@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Layer 2 — block a commit that stages secret material or personal-coupling tokens.
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+# Scan added/copied/modified staged files (-z handles spaces; macOS xargs runs once on empty input).
+git diff --cached --name-only -z --diff-filter=ACM \
+  | xargs -0 python3 "$ROOT/.githooks/secret-scan.py" files

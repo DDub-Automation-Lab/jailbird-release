@@ -1,0 +1,4 @@
+roles:
+  design:     claude
+  implement:  codex
+  qa:         antigravity
