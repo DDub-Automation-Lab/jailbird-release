@@ -15,7 +15,7 @@ Headless coding agents run shell commands, push branches, and rewrite files on t
 - **Spread the load.** A usage-balanced router exhausts your subscriptions evenly — round-robin, least-used, or weighted by remaining quota.
 - **Compose a team.** Claude designs → Codex implements → Antigravity QAs, with enforcing QA gates. Tailor which model owns which role.
 
-![license MIT](https://img.shields.io/badge/license-MIT-6E40C9) ![python 3.11+](https://img.shields.io/badge/python-3.11%2B-3572A5) ![tests 113 passing](https://img.shields.io/badge/tests-113%20passing-2EA043) ![governance live-proven x3](https://img.shields.io/badge/governance-live--proven%20x3-8957E5)
+![license MIT](https://img.shields.io/badge/license-MIT-6E40C9) ![python 3.11+](https://img.shields.io/badge/python-3.11%2B-3572A5) ![tests 116 passing](https://img.shields.io/badge/tests-116%20passing-2EA043) ![governance live-proven x3](https://img.shields.io/badge/governance-live--proven%20x3-8957E5)
 
 [Govern](#govern) · [Route](#route) · [Compose](#compose) · [Capability matrix](#capability-matrix) · [Install](#quickstart)
 
@@ -83,7 +83,7 @@ jailbird run --workflow workflows/design-build-qa.yaml --profile jailbird.profil
 
 Claude designs → Codex implements → Antigravity QAs, with an **enforcing** QA gate (`--no-gate` to disable). Tune the role→vendor map in `jailbird.profile.yaml`.
 
-A stage can also **fan out** into independent branches that each route and govern on their own vendor, then re-converge — design once, split the implementation across vendors, gate the join (`workflows/fan-out.yaml`). The fan-out gate trips if any branch fails or is blocked. Branches run sequentially today (deterministic ledger ordering); the join/gate seam is where true parallel execution drops in. Full reference: [docs/FAN-OUT.md](docs/FAN-OUT.md).
+A stage can also **fan out** into independent branches that run **concurrently**, each routing and governing on its own vendor, then re-converge — design once, split the implementation across vendors in parallel, gate the join (`workflows/fan-out.yaml`). Vendor assignment stays sequential and results re-order to declaration order, so a parallel run is deterministic; `--max-parallel` bounds the pool (`1` = sequential). The fan-out gate trips if any branch fails or is blocked. Full reference: [docs/FAN-OUT.md](docs/FAN-OUT.md).
 
 Here's a **real run** (claude → codex → antigravity, in an isolated throwaway directory, ~$0.13): claude writes a design, codex implements it and runs the tests, and antigravity's review catches a real bug.
 

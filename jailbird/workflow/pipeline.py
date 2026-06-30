@@ -1,5 +1,7 @@
 # jailbird/workflow/pipeline.py
 from __future__ import annotations
+import concurrent.futures as cf
+import threading
 from dataclasses import dataclass, field
 from jailbird.adapters import vendor_available
 from jailbird.workflow.spec import Workflow, Profile, resolve_vendor, resolve_fan_vendor
@@ -70,6 +72,59 @@ def _run_unit(role, vendor, brief, *, cwd, policy, policy_path, autonomy, ledger
     return res, sr
 
 
+def _run_fan_out(stage, *, task_text, prev, profile, router, candidate_vendors, default_vendor,
+                 cwd, policy, policy_path, ledger, on_event, max_parallel):
+    """Run a fan-out stage's branches concurrently and return (results, any_fail).
+
+    Branch vendors are assigned *sequentially* first — deterministic, and the request is
+    recorded to the ledger at assignment time so the router still spreads later branches.
+    Branches then execute on a bounded thread pool; each branch's real cost is recorded when
+    it finishes (splitting request/cost recording avoids double-counting and keeps totals
+    correct). Results are re-ordered to declaration order so the join and gate are
+    deterministic regardless of which branch finishes first.
+    """
+    # 1. Assign vendors up front (sequential → deterministic spread).
+    plans = []
+    for i, ft in enumerate(stage.fan_out):
+        vendor = _pick_vendor(resolve_fan_vendor(ft, stage, profile),
+                              ft.role or stage.role, router, candidate_vendors, default_vendor)
+        if ledger is not None:
+            ledger.record(vendor, requests=1, est_cost=0.0)
+        brief = ft.brief.format(task=task_text, prev=prev)
+        plans.append((i, f"{stage.role}[{i}]", vendor, brief))
+
+    # 2. Serialize on_event so concurrently-streamed lines don't interleave mid-line.
+    emit = on_event
+    if on_event is not None and max_parallel != 1:
+        _lock = threading.Lock()
+        def emit(e, _cb=on_event, _lk=_lock):  # noqa: E306
+            with _lk:
+                _cb(e)
+
+    def _exec(plan):
+        i, role, vendor, brief = plan
+        # ledger=None here: the request was recorded at assignment; record cost on finish.
+        res, sr = _run_unit(role, vendor, brief, cwd=cwd, policy=policy, policy_path=policy_path,
+                            autonomy=stage.autonomy, ledger=None, on_event=emit)
+        if ledger is not None:
+            ledger.record(vendor, requests=0, est_cost=res.cost_usd)
+        return i, res, sr
+
+    # 3. Run branches. A pool of 1 (or a single branch) runs inline — no threads.
+    workers = max(1, min(max_parallel, len(plans)))
+    if workers == 1:
+        done = [_exec(p) for p in plans]
+    else:
+        with cf.ThreadPoolExecutor(max_workers=workers) as ex:
+            done = list(ex.map(_exec, plans))
+
+    # 4. Re-order to declaration order; gate trips if ANY branch failed or was blocked.
+    done.sort(key=lambda d: d[0])
+    results = [sr for _, _, sr in done]
+    any_fail = any(res.returncode != 0 or res.blocked for _, res, _ in done)
+    return results, any_fail
+
+
 def run_workflow(
     wf: Workflow,
     task_text: str,
@@ -84,12 +139,15 @@ def run_workflow(
     candidate_vendors: list[str] | None = None,
     ledger=None,
     on_event=None,
+    max_parallel: int = 8,
 ) -> WorkflowResult:
     """Run each stage sequentially.
 
-    A stage is either a single unit or a ``fan_out`` group of independent
-    branches; each branch is routed and governed on its own (it may land on a
-    different vendor) and the branch summaries are joined for the next stage.
+    A stage is either a single unit or a ``fan_out`` group of independent branches
+    that run *concurrently* on a bounded pool (``max_parallel``; set 1 for
+    sequential). Each branch is routed and governed on its own (it may land on a
+    different vendor); results re-order to declaration order and the branch
+    summaries are joined for the next stage.
 
     Vendor resolution order: explicit pin → profile role → router (if provided
     and candidate_vendors given) → default_vendor.  Gate stages halt the
@@ -102,20 +160,13 @@ def run_workflow(
 
     for stage in wf.stages:
         if stage.fan_out:
-            # Fan-out: independent branches, each routed and governed on its own,
-            # then joined. The gate trips if ANY branch fails or is blocked.
-            group: list[StageResult] = []
-            any_fail = False
-            for i, ft in enumerate(stage.fan_out):
-                vendor = _pick_vendor(resolve_fan_vendor(ft, stage, profile),
-                                      ft.role or stage.role, router, candidate_vendors,
-                                      default_vendor)
-                brief = ft.brief.format(task=task_text, prev=prev)
-                res, sr = _run_unit(f"{stage.role}[{i}]", vendor, brief, cwd=cwd,
-                                    policy=policy, policy_path=policy_path,
-                                    autonomy=stage.autonomy, ledger=ledger, on_event=on_event)
-                group.append(sr)
-                any_fail = any_fail or res.returncode != 0 or res.blocked
+            # Fan-out: independent branches run concurrently, each routed and governed
+            # on its own, then joined. The gate trips if ANY branch fails or is blocked.
+            group, any_fail = _run_fan_out(
+                stage, task_text=task_text, prev=prev, profile=profile, router=router,
+                candidate_vendors=candidate_vendors, default_vendor=default_vendor, cwd=cwd,
+                policy=policy, policy_path=policy_path, ledger=ledger, on_event=on_event,
+                max_parallel=max_parallel)
             out.stages.extend(group)
             # Join every branch's summary so the next stage sees the whole fan-out.
             prev = _Prev(summary="\n".join(f"[{sr.role}] {sr.summary}" for sr in group))

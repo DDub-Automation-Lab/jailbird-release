@@ -11,9 +11,10 @@ every branch inherits the run's deny-policy and writes to the same usage ledger.
 single-process subagent harness can't give you — *governed, cross-vendor* fan-out where each
 branch can land on a different vendor under one policy — is exactly what this adds.
 
-> **Status:** branches execute **sequentially** today (deterministic ledger ordering). True
-> parallel execution is the next step; the join/gate seam is built for it and the spec/CLI
-> will not change when it lands. See [Execution model](#execution-model) below.
+> **Status:** branches execute **concurrently** on a bounded thread pool
+> (`--max-parallel`, default 8; set `1` for sequential). Vendor assignment is sequential and
+> deterministic, and results re-order to declaration order at the join, so a parallel run is
+> reproducible. See [Execution model](#execution-model) below.
 
 ## TL;DR
 
@@ -139,18 +140,29 @@ every branch's partial summary for inspection.
 
 ## Execution model
 
-| | Today | Planned (parallel) |
-|---|---|---|
-| Branch execution | **Sequential**, in declared order | Concurrent, bounded worker pool |
-| Ledger ordering | Deterministic | Deterministic at join (results re-ordered to declaration order) |
-| Wall-clock | Sum of branches | ≈ slowest branch |
-| Spec / CLI / results | — | **Unchanged** |
+Branches run **concurrently** on a bounded thread pool, but the run stays deterministic. The
+trick is a two-phase split:
 
-Sequential-first is deliberate: it keeps ledger writes ordered and the run reproducible, which
-matches jailbird's auditable-pipeline design. The router still distributes branches across
-vendors today — you get the cross-vendor *spread* now, and the wall-clock *speedup* when parallel
-execution lands. Because the join and gate already operate on the branch group as a whole, adding
-concurrency does not change the spec, the CLI, or `WorkflowResult`.
+1. **Assign (sequential, deterministic).** Each branch's vendor is resolved one at a time, and
+   its *request* is recorded to the ledger immediately — so `round_robin` / `least_used` spread
+   each subsequent branch across vendors exactly as in a sequential pipeline.
+2. **Execute (concurrent).** The resolved briefs run on a pool of up to `max_parallel` workers
+   (default 8; a single branch or `max_parallel=1` runs inline with no threads). Each branch's
+   *actual cost* is recorded when it finishes. Splitting request-vs-cost recording means the
+   ledger nets exactly one request + the real cost per branch — no double-counting.
+
+| Property | Behavior |
+|---|---|
+| Branch execution | Concurrent, bounded by `--max-parallel` (default 8) |
+| Wall-clock | ≈ slowest branch (4 × 0.3 s branches: ~0.3 s vs ~1.2 s sequential) |
+| Vendor assignment | Sequential → deterministic spread |
+| Result / join / gate order | Re-ordered to declaration order → deterministic |
+| Ledger totals | Order-independent (`flock`-guarded append) → deterministic |
+| `on_event` streaming | Serialized so concurrent branch lines don't interleave mid-line |
+
+Cost-based strategies (`least_used`, `weighted_quota`) spread on *request* count within a
+fan-out stage, since a branch's cost isn't known until it finishes — inherent to running them at
+once. Across stages and runs, the real costs are on the ledger and balance as usual.
 
 ## CLI
 
@@ -167,7 +179,8 @@ jailbird run --workflow workflows/fan-out.yaml --task "demo" --vendor echo
 ```
 
 Relevant `jailbird run` flags: `--workflow`, `--task`, `--profile`, `--policy`, `--candidates`,
-`--strategy`, `--no-gate`, `--ledger`. (Same flags as any workflow run.)
+`--strategy`, `--no-gate`, `--ledger`, and `--max-parallel` (max branches to run at once;
+default 8, `1` = sequential).
 
 ### Example run (offline, `echo`)
 
@@ -206,6 +219,7 @@ result = run_workflow(
     profile=Profile({"implement": "claude", "qa": "antigravity"}),
     candidate_vendors=["claude", "codex", "antigravity"],
     default_vendor="echo",
+    max_parallel=8,            # branches per fan-out stage to run at once (1 = sequential)
 )
 
 for s in result.stages:           # design, implement[0], implement[1], implement[2]
@@ -227,8 +241,13 @@ Branch briefs support the same placeholders as sequential stages:
 
 ## Honest limitations
 
-- **Sequential today.** Branches do not yet run concurrently (see [Execution model](#execution-model)).
-  You get cross-vendor distribution now, wall-clock speedup later.
+- **Thread pool, not processes.** Branches run on a `ThreadPoolExecutor`; the work is the
+  subprocess each branch spawns (the vendor CLI), so the GIL is not the bottleneck. `max_parallel`
+  bounds concurrent vendor subprocesses — size it to your rate limits.
+- **Cost-based spread is per-request within a stage.** `least_used` / `weighted_quota` can't
+  balance on cost *inside* one fan-out stage because branch costs aren't known until they finish
+  (see [Execution model](#execution-model)); they balance on request count there and on real cost
+  everywhere else.
 - **No cross-branch communication.** Branches in the same stage are independent and cannot read
   each other's results — that is the point. If a branch needs another's output, make them
   separate sequential stages.

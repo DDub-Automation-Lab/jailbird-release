@@ -1,4 +1,5 @@
 # tests/test_pipeline.py
+import pytest
 from jailbird.workflow.spec import Workflow, Stage, FanTask, Profile
 from jailbird.workflow.pipeline import run_workflow
 
@@ -109,6 +110,38 @@ def test_fan_out_branch_pins_vendor(tmp_path):
     ])
     res = run_workflow(wf, "x", cwd=str(tmp_path), profile=Profile({"impl": "echo"}))
     assert [s.vendor for s in res.stages] == ["echo", "echo"]
+
+
+def test_fan_out_parallel_preserves_declaration_order(tmp_path):
+    # Six branches on the default pool must re-order to impl[0..5] regardless of
+    # which subprocess finishes first.
+    wf = Workflow(name="t", stages=[
+        Stage(role="impl", fan_out=[FanTask(brief=f"part {n}") for n in range(6)]),
+    ])
+    res = run_workflow(wf, "x", cwd=str(tmp_path), default_vendor="echo")
+    assert [s.role for s in res.stages] == [f"impl[{i}]" for i in range(6)]
+
+
+def test_fan_out_max_parallel_one_runs_sequentially(tmp_path):
+    wf = Workflow(name="t", stages=[
+        Stage(role="impl", fan_out=[FanTask(brief="a"), FanTask(brief="b"), FanTask(brief="c")]),
+    ])
+    res = run_workflow(wf, "x", cwd=str(tmp_path), default_vendor="echo", max_parallel=1)
+    assert [s.role for s in res.stages] == ["impl[0]", "impl[1]", "impl[2]"]
+    assert res.halted is False
+
+
+def test_fan_out_ledger_records_one_request_and_cost_per_branch(tmp_path):
+    from jailbird.router.ledger import Ledger
+    led = Ledger(str(tmp_path / "l.jsonl"))
+    wf = Workflow(name="t", stages=[
+        Stage(role="impl", fan_out=[FanTask(brief="a"), FanTask(brief="b"), FanTask(brief="c")]),
+    ])
+    run_workflow(wf, "x", cwd=str(tmp_path), default_vendor="echo", ledger=led)
+    totals = led.totals()
+    # split request/cost recording must net exactly one request + the real cost per branch
+    assert totals["echo"].requests == 3
+    assert totals["echo"].est_cost == pytest.approx(0.03)
 
 
 def test_absent_vendor_cli_falls_back_to_echo(tmp_path, monkeypatch):

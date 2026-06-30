@@ -53,7 +53,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 profile=profile, router=router, policy=pol, policy_path=args.policy, cwd=args.cwd,
                 default_vendor=args.vendor or "echo", enforce_gates=not args.no_gate,
                 candidate_vendors=args.candidates or ["echo"], ledger=led,
-                on_event=_print_event,
+                on_event=_print_event, max_parallel=args.max_parallel,
             )
             for s in result.stages:
                 print(f"[{s.role}] vendor={s.vendor} rc={s.returncode} "
@@ -112,6 +112,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--strategy", default="weighted_quota")
     r.add_argument("--candidates", nargs="+", default=None)
     r.add_argument("--no-gate", action="store_true")
+    r.add_argument("--max-parallel", type=int, default=8,
+                   help="max fan-out branches to run concurrently (1 = sequential)")
     r.add_argument("--ledger", default=DEFAULT_LEDGER)
     r.set_defaults(func=cmd_run)
 
