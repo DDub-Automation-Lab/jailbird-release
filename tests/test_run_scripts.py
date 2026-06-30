@@ -11,6 +11,7 @@ VENV_BIN = pathlib.Path(sys.executable).parent
     "examples/01-hello-echo/run.sh",
     "examples/02-governed-deny/run.sh",
     "examples/03-multi-model-relay/run.sh",
+    "examples/04-parallel-fan-out/run.sh",
 ])
 def test_example_run_scripts_offline(script):
     if not (VENV_BIN / "jailbird").exists():

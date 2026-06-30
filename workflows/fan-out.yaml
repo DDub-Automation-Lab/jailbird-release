@@ -1,0 +1,20 @@
+name: fan-out
+# Design once, then fan the implementation out across vendors in parallel branches,
+# then re-converge for QA. Each branch is routed and governed independently (it can
+# land on a different vendor) but shares the run's deny-policy and usage ledger.
+# The fan-out gate halts the workflow if ANY branch fails or is blocked.
+stages:
+  - role: design
+    brief: "Split this task into independent, parallelizable parts and give each a crisp brief: {task}"
+  - role: implement
+    gate: true
+    fan_out:
+      - role: implement
+        brief: "Implement part 1 of the design. Context: {prev.summary}"
+      - role: implement
+        brief: "Implement part 2 of the design. Context: {prev.summary}"
+      - role: implement
+        brief: "Implement part 3 of the design. Context: {prev.summary}"
+  - role: qa
+    gate: true
+    brief: "Review the combined diff from all branches for correctness & integration risks. Context: {prev.summary}"
