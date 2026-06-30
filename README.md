@@ -15,7 +15,7 @@ Headless coding agents run shell commands, push branches, and rewrite files on t
 - **Spread the load.** A usage-balanced router exhausts your subscriptions evenly — round-robin, least-used, or weighted by remaining quota.
 - **Compose a team.** Claude designs → Codex implements → Antigravity QAs, with enforcing QA gates. Tailor which model owns which role.
 
-![license MIT](https://img.shields.io/badge/license-MIT-6E40C9) ![python 3.11+](https://img.shields.io/badge/python-3.11%2B-3572A5) ![tests 116 passing](https://img.shields.io/badge/tests-116%20passing-2EA043) ![governance live-proven x3](https://img.shields.io/badge/governance-live--proven%20x3-8957E5)
+![license MIT](https://img.shields.io/badge/license-MIT-6E40C9) ![python 3.11+](https://img.shields.io/badge/python-3.11%2B-3572A5) ![tests 119 passing](https://img.shields.io/badge/tests-119%20passing-2EA043) ![governance live-proven x3](https://img.shields.io/badge/governance-live--proven%20x3-8957E5)
 
 [Govern](#govern) · [Route](#route) · [Compose](#compose) · [Capability matrix](#capability-matrix) · [Install](#quickstart)
 

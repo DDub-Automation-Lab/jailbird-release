@@ -263,8 +263,14 @@ Fan-out is covered offline by the `echo` mock:
 
 - `tests/test_workflow_spec.py` — YAML parsing, branch validation, `resolve_fan_vendor`.
 - `tests/test_pipeline.py` — every branch runs, gate-halts on a failing branch, joined summary
-  feeds the next stage, per-branch vendor pinning.
-- `tests/test_examples.py` — `workflows/fan-out.yaml` parses as part of the preset sweep.
+  feeds the next stage, per-branch vendor pinning, **declaration-order determinism under the
+  pool**, **`max_parallel=1` sequential mode**, **real concurrency** (timed: 6 branches run on
+  the pool in a fraction of the serialized wall-clock), and **ledger accounting** (one request +
+  the real cost per branch, even when a branch fails under a gate).
+- `tests/test_examples.py` — `workflows/fan-out.yaml` and `examples/04-parallel-fan-out/` parse
+  as part of the preset sweep.
+- `tests/test_run_scripts.py` — `examples/04-parallel-fan-out/run.sh` is executed end-to-end in
+  CI (PATH-stripped so it runs fully offline on `echo`).
 
 ```bash
 ruff check . && mypy jailbird && pytest -q
@@ -275,3 +281,5 @@ ruff check . && mypy jailbird && pytest -q
 - [README › Compose](../README.md#compose) — the workflow/profile model.
 - [CAPABILITY-MATRIX.md](CAPABILITY-MATRIX.md) — what each governance layer guarantees.
 - `workflows/fan-out.yaml` — the worked example used above.
+- `examples/04-parallel-fan-out/` — a runnable example (design → 3 parallel branches → QA),
+  executed offline in CI via `run.sh`.

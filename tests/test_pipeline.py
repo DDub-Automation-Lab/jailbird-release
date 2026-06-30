@@ -144,6 +144,52 @@ def test_fan_out_ledger_records_one_request_and_cost_per_branch(tmp_path):
     assert totals["echo"].est_cost == pytest.approx(0.03)
 
 
+def test_fan_out_runs_branches_concurrently(tmp_path, monkeypatch):
+    # Patch the per-branch run() with a 0.1s stub so wall-clock proves concurrency
+    # deterministically: 6 branches sequentially ~0.6s, on the pool ~0.1s.
+    import time
+    import jailbird.workflow.pipeline as pipeline
+    from jailbird.runner import RunResult
+    from jailbird.types import Event
+
+    def slow_run(task, vendor, **kw):
+        time.sleep(0.1)
+        return RunResult(vendor=vendor, returncode=0, cost_usd=0.01,
+                         events=[Event(kind="result", text="done", cost_usd=0.01)])
+    monkeypatch.setattr(pipeline, "run", slow_run)
+
+    wf = Workflow(name="t", stages=[
+        Stage(role="impl", fan_out=[FanTask(brief=f"b{i}") for i in range(6)]),
+    ])
+    t = time.monotonic()
+    run_workflow(wf, "x", cwd=str(tmp_path), default_vendor="echo", max_parallel=1)
+    seq_dt = time.monotonic() - t
+
+    t = time.monotonic()
+    par = run_workflow(wf, "x", cwd=str(tmp_path), default_vendor="echo", max_parallel=6)
+    par_dt = time.monotonic() - t
+
+    assert seq_dt > 0.5                         # 6 x 0.1s, serialized
+    assert par_dt < seq_dt / 2                  # generous margin, not flaky
+    assert [s.role for s in par.stages] == [f"impl[{i}]" for i in range(6)]  # order preserved
+
+
+def test_fan_out_gate_halt_still_nets_one_request_per_branch(tmp_path):
+    from jailbird.router.ledger import Ledger
+    led = Ledger(str(tmp_path / "l.jsonl"))
+    wf = Workflow(name="t", stages=[
+        Stage(role="impl", gate=True, fan_out=[
+            FanTask(brief="ok 1"), FanTask(brief="boom TRIGGER_FAIL"), FanTask(brief="ok 3")]),
+        Stage(role="qa", brief="should be skipped {prev.summary}"),
+    ])
+    res = run_workflow(wf, "x", cwd=str(tmp_path), default_vendor="echo", ledger=led)
+    assert res.halted is True
+    assert [s.role for s in res.stages] == ["impl[0]", "impl[1]", "impl[2]"]  # qa skipped
+    assert res.stages[1].returncode != 0
+    # a request is recorded per branch at assignment even though one branch later failed
+    assert led.totals()["echo"].requests == 3
+
+
 def test_absent_vendor_cli_falls_back_to_echo(tmp_path, monkeypatch):
     import jailbird.adapters.base as base
     monkeypatch.setattr(base.shutil, "which", lambda name: None)  # no vendor binary on PATH
