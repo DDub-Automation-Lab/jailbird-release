@@ -83,7 +83,7 @@ jailbird run --workflow workflows/design-build-qa.yaml --profile jailbird.profil
 
 Claude designs → Codex implements → Antigravity QAs, with an **enforcing** QA gate (`--no-gate` to disable). Tune the role→vendor map in `jailbird.profile.yaml`.
 
-A stage can also **fan out** into independent branches that each route and govern on their own vendor, then re-converge — design once, split the implementation across vendors, gate the join (`workflows/fan-out.yaml`). The fan-out gate trips if any branch fails or is blocked. Branches run sequentially today (deterministic ledger ordering); the join/gate seam is where true parallel execution drops in.
+A stage can also **fan out** into independent branches that each route and govern on their own vendor, then re-converge — design once, split the implementation across vendors, gate the join (`workflows/fan-out.yaml`). The fan-out gate trips if any branch fails or is blocked. Branches run sequentially today (deterministic ledger ordering); the join/gate seam is where true parallel execution drops in. Full reference: [docs/FAN-OUT.md](docs/FAN-OUT.md).
 
 Here's a **real run** (claude → codex → antigravity, in an isolated throwaway directory, ~$0.13): claude writes a design, codex implements it and runs the tests, and antigravity's review catches a real bug.
 
